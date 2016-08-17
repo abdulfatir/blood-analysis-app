@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Conc Analyzer</string>
+    <string name="title_activity_send_crash_report">SendCrashReportActivity</string>
+    <string name="instructions">Take picture in portrait mode keeping the standard strip as horizontal as possible.</string>
+    <string name="checkboxText">Don\'t Show Again</string>
+    <string name="title_activity_main">TestActivity</string>
+    <string name="settings">Settings</string>
+</resources>
