@@ -14,8 +14,14 @@ import android.widget.CheckBox;
 
 import com.abdulfatir.concanalyzer.util.Consts;
 
+/**
+ * Presents the user with a choice of loading a picture from local storage or to take picture.
+ */
 public class ChooserActivity extends AppCompatActivity {
 
+    private static final String DONT_SHOW_KEY = "dontShow";
+    public static final String DEMO_MODE_KEY = "demoMode";
+    public static final String FIRST_RUN_KEY = "firstRun";
     private SharedPreferences prefs;
 
     @Override
@@ -36,7 +42,6 @@ public class ChooserActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle item selection
         switch (item.getItemId()) {
             case R.id.settings:
                 showSettingsDialog();
@@ -60,48 +65,55 @@ public class ChooserActivity extends AppCompatActivity {
                 settingsDialog.dismiss();
             }
         });
-        settingsDialog.setTitle("Settings");
+        settingsDialog.setTitle(R.string.settingsText);
         settingsDialog.show();
     }
 
     private boolean isFirstRun() {
-        boolean firstRun = prefs.getBoolean("firstRun", true);
+        boolean firstRun = prefs.getBoolean(FIRST_RUN_KEY, true);
         if (firstRun)
-            prefs.edit().putBoolean("firstRun", false).apply();
+            prefs.edit().putBoolean(FIRST_RUN_KEY, false).apply();
         return firstRun;
     }
 
     private boolean isDemoOn() {
-        return prefs.getBoolean("demoMode", true);
+        return prefs.getBoolean(DEMO_MODE_KEY, true);
     }
 
     private void setDemoMode(boolean mode) {
-        prefs.edit().putBoolean("demoMode", mode).apply();
+        prefs.edit().putBoolean(DEMO_MODE_KEY, mode).apply();
     }
 
+    /**
+     * Load image.
+     *
+     * @param view the view
+     */
     public void loadImage(View view) {
-
         Intent analyzer = new Intent(this, AnalyzerActivity.class);
         analyzer.putExtra(Consts.CHOICE_KEY, Consts.CHOOSE_FROM_LIBRARY);
         startActivity(analyzer);
     }
 
+    /**
+     * Take picture.
+     *
+     * @param view the view
+     */
     public void takePicture(View view) {
-
-        boolean displayInstructions = !(prefs.getBoolean("dontShow", false));
+        boolean displayInstructions = !(prefs.getBoolean(DONT_SHOW_KEY, false));
         if (displayInstructions) {
             final Dialog instructionDialog = new Dialog(this);
             instructionDialog.setContentView(R.layout.dialog_instructions);
-            instructionDialog.setTitle("Instructions");
+            instructionDialog.setTitle(R.string.instructionsText);
             final CheckBox dontShow = (CheckBox) instructionDialog.findViewById(R.id.checkBox);
             Button OK = (Button) instructionDialog.findViewById(R.id.button4);
-
             OK.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     if (dontShow.isChecked()) {
                         SharedPreferences.Editor editor = prefs.edit();
-                        editor.putBoolean("dontShow", true);
+                        editor.putBoolean(DONT_SHOW_KEY, true);
                         editor.apply();
                     }
                     instructionDialog.dismiss();
@@ -111,7 +123,6 @@ public class ChooserActivity extends AppCompatActivity {
             instructionDialog.setCancelable(false);
             instructionDialog.show();
         } else {
-
             startAnalyzeActivity();
         }
     }

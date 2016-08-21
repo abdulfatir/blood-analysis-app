@@ -11,6 +11,9 @@ import android.view.View;
 
 import java.io.InputStreamReader;
 
+/**
+ * The type Send crash report activity.
+ */
 public class SendCrashReportActivity extends AppCompatActivity {
 
     private String trace;
@@ -32,21 +35,20 @@ public class SendCrashReportActivity extends AppCompatActivity {
         String model = Build.MODEL;
         if (!model.startsWith(Build.MANUFACTURER))
             model = Build.MANUFACTURER + " " + model;
-
         InputStreamReader reader = null;
         String output = "";
-
-        // write output stream
         output += ("Android version: " + Build.VERSION.SDK_INT + "\n");
         output += ("Device: " + model + "\n");
         output += ("App version: " + (info == null ? "(null)" : info.versionCode) + "\n");
         output += trace;
-
-
-        //Log.d(getClass().getName(),output);
         return output;
     }
 
+    /**
+     * Exit app.
+     *
+     * @param view the view
+     */
     public void exitApp(View view) {
         Intent intent = new Intent(this, ChooserActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -57,6 +59,11 @@ public class SendCrashReportActivity extends AppCompatActivity {
     }
 
 
+    /**
+     * Send log.
+     *
+     * @param view the view
+     */
     public void sendLog(View view) {
         Intent fback = new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"));
         fback.putExtra(Intent.EXTRA_EMAIL, new String[]{"abdulfatirs@gmail.com"});

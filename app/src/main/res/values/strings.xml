@@ -5,4 +5,8 @@
     <string name="checkboxText">Don\'t Show Again</string>
     <string name="title_activity_main">TestActivity</string>
     <string name="settings">Settings</string>
+    <string name="settingsText">Settings</string>
+    <string name="instructionsText">Instructions</string>
+    <string name="analyzeText">Analyze</string>
+    <string name="resultsText">Results</string>
 </resources>

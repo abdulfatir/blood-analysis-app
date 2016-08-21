@@ -23,6 +23,6 @@
         android:layout_centerHorizontal="true"
         android:text="Analyze"
         android:id="@+id/analyze"
-        android:onClick="analyze"
+        android:onClick="onButtonPress"
         android:layout_alignParentBottom="true" />
 </RelativeLayout>

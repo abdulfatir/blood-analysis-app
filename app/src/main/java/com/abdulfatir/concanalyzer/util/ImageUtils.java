@@ -7,7 +7,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.media.ExifInterface;
 import android.net.Uri;
-import android.os.Build;
 import android.provider.Settings;
 import android.support.annotation.Nullable;
 import android.util.Log;
@@ -19,48 +18,38 @@ import java.io.IOException;
  */
 public class ImageUtils {
 
+    /**
+     * Returns a less resolution Bitmap with specified width maintaining aspect ratio.
+     *
+     * @param filePath    the file path
+     * @param widthNeeded the width needed
+     * @return the bitmap
+     */
     public static Bitmap lessResolution(String filePath, int widthNeeded) {
-
-
         Bitmap orig = rotateBitmap(BitmapFactory.decodeFile(filePath), getOrientation(filePath));
         final int height = orig.getHeight();
         final int width = orig.getWidth();
-
         double aspectRatio = ((double) width) / height;
         int reqHeight = (int) (widthNeeded / aspectRatio);
-        int reqWidth = widthNeeded;
-
-        Bitmap scaled = Bitmap.createScaledBitmap(orig, reqWidth, reqHeight, true);
+        Bitmap scaled = Bitmap.createScaledBitmap(orig, widthNeeded, reqHeight, true);
         if (!scaled.equals(orig)) {
             orig.recycle();
             orig = null;
         }
-
         System.gc();
-        Log.d("size", width + "," + height + "," + reqWidth + "," + reqHeight);
-
         return scaled;
     }
 
 
-    public static void startInstalledAppDetailsActivity(final Activity context) {
-        if (context == null) {
-            return;
-        }
-        final Intent i = new Intent();
-        i.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-        i.addCategory(Intent.CATEGORY_DEFAULT);
-        i.setData(Uri.parse("package:" + context.getPackageName()));
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        i.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
-        i.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-        context.startActivity(i);
-    }
-
-
+    /**
+     * Rotate the image according to EXIF data.
+     *
+     * @param bitmap      the bitmap
+     * @param orientation the orientation
+     * @return the rotated bitmap
+     */
     @Nullable
-    public static Bitmap rotateBitmap(Bitmap bitmap, int orientation) {
-
+    private static Bitmap rotateBitmap(Bitmap bitmap, int orientation) {
         Matrix matrix = new Matrix();
         matrix.reset();
         switch (orientation) {
@@ -94,23 +83,21 @@ public class ImageUtils {
                 return bitmap;
         }
         try {
-            Log.d("rotate", "rotate" + orientation + matrix.toShortString());
-            //Matrix m = new Matrix();
-            //m.reset();
-            //m.postRotate(90);
-            Log.d("sizeBefore", bitmap.getWidth() + "," + bitmap.getHeight());
             Bitmap bmRotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-            //Log.d("sizeAfter", bmRotated.getWidth()+","+bmRotated.getHeight());
             bitmap.recycle();
             bitmap = null;
             return bmRotated;
         } catch (OutOfMemoryError e) {
             e.printStackTrace();
-            Log.d("error", "OOM");
             return null;
         }
     }
 
+    /**
+     * Gets the EXIF orientation of the image specified by path
+     * @param path Path of the image
+     * @return orientation
+     */
 
     private static int getOrientation(String path) {
         ExifInterface exif = null;
@@ -121,7 +108,6 @@ public class ImageUtils {
         }
         int orient = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION,
                 ExifInterface.ORIENTATION_UNDEFINED);
-        Log.d("orient", orient + "");
         return orient;
     }
 

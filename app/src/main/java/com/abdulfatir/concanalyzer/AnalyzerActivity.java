@@ -1,5 +1,6 @@
 package com.abdulfatir.concanalyzer;
 
+import android.app.Activity;
 import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Intent;
@@ -11,14 +12,16 @@ import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.provider.Settings;
+import android.support.annotation.Nullable;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -58,24 +61,93 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Performs analysis on the image to detect ROIs.
+ */
 public class AnalyzerActivity extends AppCompatActivity {
 
+    public static final String IMAGE_KEY = "IMAGE";
+    public static final String DEMO_MODE_KEY = "demoMode";
+    /**
+     * The number of blobs to detect.
+     */
+    public static final int NB_BLOBS = 7;
     private static final String KNOWN_SAMPLES_KEY = "KNOWN_SAMPLES";
     private static final String UNKNOWN_SAMPLES_KEY = "UNKNOWN_SAMPLES";
     private static final String QC_SAMPLES_KEY = "QC_SAMPLES";
     private static final String SLOPE_KEY = "SLOPE";
     private static final String INTERCEPT_KEY = "INTERCEPT";
+    private static final String DECIMAL_NO_REGEX = "^\\d{1,5}(\\.|\\.\\d+)?$";
+    private static final int PERMISSION_STORAGE = 2345;
+
+    static {
+        OpenCVLoader.initDebug();
+    }
+
+    private final int IMAGE_CODE = 7323;
+    private final int CAMERA_CODE = 3243;
+    /**
+     * The Samples.
+     */
+    HashMap<Integer, SampleModel> samples;
     private ImageView imageView;
     private String pictureFilePath;
     private int choice;
     private SharedPreferences prefs;
+    private Uri cameraFileUri;
+    private boolean analyzedCorrectly = false;
+    private Bitmap changedBitmap;
+    private ProgressDialog dlg;
+    private Rect[] rects;
+
+    /**
+     * Opens settings for this application for allowing user to give permissions.
+     *
+     * @param context the context
+     */
+    public static void startInstalledAppDetailsActivity(final Activity context) {
+        if (context == null) {
+            return;
+        }
+        final Intent i = new Intent();
+        i.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+        i.addCategory(Intent.CATEGORY_DEFAULT);
+        i.setData(Uri.parse("package:" + context.getPackageName()));
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        i.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
+        i.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+        context.startActivity(i);
+    }
+
+    /**
+     * Save the bitmap as a jpeg file.
+     *
+     * @param bmp the bmp
+     * @return the file
+     * @throws IOException the io exception
+     */
+    public static File saveBitmap(Bitmap bmp) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        bmp.compress(Bitmap.CompressFormat.JPEG, 100, bytes);
+        String path = Environment.getExternalStorageDirectory()
+                + File.separator + "ConcAnalyzer";
+        File dir = new File(path);
+        if (!dir.exists())
+            dir.mkdirs();
+        path += (File.separator + Long.toString(System.currentTimeMillis() / 1000) + ".jpg");
+        File f = new File(path);
+        f.createNewFile();
+        FileOutputStream fo = new FileOutputStream(f);
+        fo.write(bytes.toByteArray());
+        fo.close();
+        return f;
+    }
 
     @Override
     protected void onRestoreInstanceState(Bundle saved) {
-        Log.d("conc", "onRestore()");
-        String fname = saved.getString("IMAGE");
-        if (fname != null) {
-            cameraFileUri = Uri.fromFile(new File(fname));
+        String filename = saved.getString(IMAGE_KEY);
+        if (filename != null) {
+            cameraFileUri = Uri.fromFile(new File(filename));
         }
     }
 
@@ -83,31 +155,23 @@ public class AnalyzerActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_analyzer);
-        Log.d("conc", "onCreate()");
-
         if (savedInstanceState != null) {
-
-            String fname = savedInstanceState.getString("IMAGE");
-            if (fname != null) {
-                cameraFileUri = Uri.fromFile(new File(fname));
-                Log.d("conc", "resumed" + cameraFileUri.getPath());
+            String filename = savedInstanceState.getString(IMAGE_KEY);
+            if (filename != null) {
+                cameraFileUri = Uri.fromFile(new File(filename));
             }
         }
-
-
         choice = getIntent().getIntExtra(Consts.CHOICE_KEY, -1);
         prefs = getSharedPreferences(Consts.PREFS_NAME, MODE_PRIVATE);
         imageView = (ImageView) findViewById(R.id.imageView);
-        final Dialog sample_data = new Dialog(this);
-        sample_data.setContentView(R.layout.dialog_sample_data);
-        sample_data.setCancelable(true);
-
-        final EditText intensityET = (EditText) sample_data.findViewById(R.id.editText);
-        final Spinner sampleTypeSp = (Spinner) sample_data.findViewById(R.id.spinner);
-        final EditText concET = (EditText) sample_data.findViewById(R.id.editText3);
-        final EditText idET = (EditText) sample_data.findViewById(R.id.editText4);
-        Button save = (Button) sample_data.findViewById(R.id.button3);
-
+        final Dialog sampleData = new Dialog(this);
+        sampleData.setContentView(R.layout.dialog_sample_data);
+        sampleData.setCancelable(true);
+        final EditText intensityET = (EditText) sampleData.findViewById(R.id.editText);
+        final Spinner sampleTypeSp = (Spinner) sampleData.findViewById(R.id.spinner);
+        final EditText concET = (EditText) sampleData.findViewById(R.id.editText3);
+        final EditText idET = (EditText) sampleData.findViewById(R.id.editText4);
+        Button save = (Button) sampleData.findViewById(R.id.button3);
         sampleTypeSp.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
@@ -119,44 +183,41 @@ public class AnalyzerActivity extends AppCompatActivity {
 
             @Override
             public void onNothingSelected(AdapterView<?> adapterView) {
-
             }
         });
-
         save.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-
                 int pos = sampleTypeSp.getSelectedItemPosition();
                 int idx = Integer.parseInt(idET.getText().toString());
                 String conc = concET.getText().toString();
-
                 if (pos == 2) {
                     samples.get(idx).setDataPointType(SampleModel.DataPointType.UNKNOWN);
                     samples.get(idx).setUpdated(true);
                 } else if (pos == 0) {
                     samples.get(idx).setDataPointType(SampleModel.DataPointType.KNOWN);
-                    if (conc.matches("^\\d{1,5}(\\.|\\.\\d+)?$")) {
+                    if (conc.matches(DECIMAL_NO_REGEX)) {
                         double concen = Double.parseDouble(conc);
                         samples.get(idx).setConcentration(concen);
                         samples.get(idx).setUpdated(true);
+                    } else {
+                        Toast.makeText(AnalyzerActivity.this, "Enter valid concentration value.", Toast.LENGTH_SHORT).show();
                     }
                 } else if (pos == 1) {
                     samples.get(idx).setDataPointType(SampleModel.DataPointType.QUALITY_CONTROL);
-                    if (conc.matches("^\\d{1,5}(\\.|\\.\\d+)?$")) {
+                    if (conc.matches(DECIMAL_NO_REGEX)) {
                         double concen = Double.parseDouble(conc);
                         samples.get(idx).setConcentration(concen);
                         samples.get(idx).setUpdated(true);
+                    } else {
+                        Toast.makeText(AnalyzerActivity.this, "Enter valid concentration value.", Toast.LENGTH_SHORT).show();
                     }
                 }
-
                 if (samples.get(idx).isUpdated())
                     updateBitmap();
-
-                sample_data.dismiss();
+                sampleData.dismiss();
             }
         });
-
         imageView.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -174,9 +235,7 @@ public class AnalyzerActivity extends AppCompatActivity {
                                 if (s.getConcentration() == 0)
                                     concET.setText("");
                                 idET.setText(String.format(Locale.getDefault(), "%d", idx));
-
                                 int pos = 0;
-
                                 switch (s.getDataPointType()) {
                                     case KNOWN:
                                         pos = 0;
@@ -187,11 +246,9 @@ public class AnalyzerActivity extends AppCompatActivity {
                                     case UNKNOWN:
                                         pos = 2;
                                 }
-
                                 sampleTypeSp.setSelection(pos);
-
-                                sample_data.setTitle("Set Value");
-                                sample_data.show();
+                                sampleData.setTitle("Set Value");
+                                sampleData.show();
                             }
                         }
                     }
@@ -199,7 +256,6 @@ public class AnalyzerActivity extends AppCompatActivity {
                 return true;
             }
         });
-
         if (choice == Consts.CHOOSE_FROM_LIBRARY) {
             if (!hasPermission(Consts.STORAGE_PERMISSIONS[0])) {
                 ActivityCompat.requestPermissions(this, Consts.STORAGE_PERMISSIONS, PERMISSION_STORAGE);
@@ -215,6 +271,14 @@ public class AnalyzerActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    public void onSaveInstanceState(Bundle out) {
+        if (cameraFileUri != null) {
+            out.putString(IMAGE_KEY, cameraFileUri.getPath());
+        }
+        super.onSaveInstanceState(out);
+    }
+
     private void chooseFromLibrary() {
         startActivityForResult(Intent.createChooser(new Intent(Intent.ACTION_GET_CONTENT)
                 .setType("image/*"), "Choose an image"), IMAGE_CODE);
@@ -224,63 +288,40 @@ public class AnalyzerActivity extends AppCompatActivity {
         File mainDirectory = new File(Environment.getExternalStorageDirectory(), "ConcAnalyzer/Images");
         if (!mainDirectory.exists())
             mainDirectory.mkdirs();
-
         cameraFileUri = Uri.fromFile(new File(mainDirectory, "IMG_conc.jpg"));
         Intent cameraIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
         cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, cameraFileUri);
         startActivityForResult(cameraIntent, CAMERA_CODE);
     }
 
-    @Override
-    public void onSaveInstanceState(Bundle out) {
-        if (cameraFileUri != null) {
-            out.putString("IMAGE", cameraFileUri.getPath());
-        }
-        super.onSaveInstanceState(out);
-    }
-
-    private Uri cameraFileUri;
-    private boolean analyzedCorrectly = false;
-
-
+    @Nullable
     private int[] getProjection(float x, float y) {
         if (x < 0 || y < 0 || x > imageView.getWidth() || y > imageView.getHeight()) {
             return null;
         } else {
             int projectedX = (int) ((double) x * ((double) changedBitmap.getWidth() / (double) imageView.getWidth()));
             int projectedY = (int) ((double) y * ((double) changedBitmap.getHeight() / (double) imageView.getHeight()));
-
             return new int[]{projectedX, projectedY};
         }
     }
-
-    HashMap<Integer, SampleModel> samples;
-
-    private final int IMAGE_CODE = 7323;
-    private final int CAMERA_CODE = 3243;
-    private Bitmap changedBitmap;
-
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == IMAGE_CODE && resultCode == RESULT_OK && data != null) {
             analyzedCorrectly = false;
-
             String[] projection = {MediaStore.Images.Media.DATA, MediaStore.Images.Media.ORIENTATION};
             Uri selectedImage = data.getData();
             Cursor cursor = null;
             if (Build.VERSION.SDK_INT > 19) {
-                // Will return "image:x*"
                 String id = null;
                 if (DocumentsContract.isDocumentUri(this, selectedImage)) {
                     String wholeID = DocumentsContract.getDocumentId(selectedImage);
                     id = wholeID.split(":")[1];
                 } else {
-                    String pattern = "\\/(\\d+)$";
-                    Pattern r = Pattern.compile(pattern);
+                    String regex = "\\/(\\d+)$";
+                    Pattern r = Pattern.compile(regex);
                     Log.d(getClass().getName(), selectedImage.toString());
-
                     Matcher m = r.matcher(selectedImage.toString());
                     if (m.find())
                         id = m.group(1);
@@ -289,10 +330,7 @@ public class AnalyzerActivity extends AppCompatActivity {
                 if (id != null)
                     cursor = getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                             projection, sel, new String[]{id}, null);
-            }
-
-            //String[] filePathColumn = {MediaStore.Images.Media.DATA, };
-            else {
+            } else {
                 cursor = getContentResolver().query(selectedImage,
                         projection, null, null, null);
             }
@@ -302,35 +340,24 @@ public class AnalyzerActivity extends AppCompatActivity {
                     pictureFilePath = cursor.getString(columnIndex);
                     int orientation = -1;
                     orientation = cursor.getInt(cursor.getColumnIndex(projection[1]));
-
                     Matrix matrix = new Matrix();
                     matrix.reset();
                     matrix.postRotate(orientation);
-
                     cursor.close();
-
-                    changedBitmap = ImageUtils.lessResolution(pictureFilePath, 600);
-
-                    imageView.setImageBitmap(changedBitmap);
+                    new AsyncScaleImage().execute();
                 } else {
                     if (selectedImage.toString().startsWith("file://")) {
                         pictureFilePath = selectedImage.getPath();
-                        changedBitmap = ImageUtils.lessResolution(pictureFilePath, 600);
-                        imageView.setImageBitmap(changedBitmap);
+                        new AsyncScaleImage().execute();
                     }
                 }
             } catch (NullPointerException e) {
                 Toast.makeText(this, "Failed to load image. Try loading from a different app or folder instead.", Toast.LENGTH_LONG).show();
             }
         } else if (requestCode == CAMERA_CODE && resultCode == RESULT_OK) {
-
-            Log.d("conc", cameraFileUri.getPath());
             pictureFilePath = cameraFileUri.getPath();
-            changedBitmap = ImageUtils.lessResolution(pictureFilePath, 600);
-            Log.d("conc", "1");
-            imageView.setImageBitmap(changedBitmap);
+            new AsyncScaleImage().execute();
         }
-
         if (resultCode == RESULT_CANCELED) {
             finish();
         }
@@ -338,19 +365,26 @@ public class AnalyzerActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onPause() {
+        if (cameraFileUri != null) {
+            getContentResolver().notifyChange(cameraFileUri, null);
+        }
+        if (changedBitmap != null) {
+            changedBitmap.recycle();
+            changedBitmap = null;
+        }
+        super.onPause();
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
-        Log.d("conc", "onResume()");
         if (pictureFilePath != null) {
-            Log.d("conc", pictureFilePath);
             changedBitmap = ImageUtils.lessResolution(pictureFilePath, 600);
             imageView.setImageBitmap(changedBitmap);
         }
-        ((Button) findViewById(R.id.analyze)).setText("Analyze");
+        ((Button) findViewById(R.id.analyze)).setText(R.string.analyzeText);
     }
-
-    private static final int PERMISSION_STORAGE = 2345;
-
 
     @Override
     public void onRequestPermissionsResult(int permsRequestCode, final String[] permissions, int[] grantResults) {
@@ -377,7 +411,7 @@ public class AnalyzerActivity extends AppCompatActivity {
                                 Snackbar.LENGTH_INDEFINITE).setAction(android.R.string.ok, new View.OnClickListener() {
                             @Override
                             public void onClick(View view) {
-                                ImageUtils.startInstalledAppDetailsActivity(AnalyzerActivity.this);
+                                startInstalledAppDetailsActivity(AnalyzerActivity.this);
                                 android.os.Process.killProcess(android.os.Process.myPid());
                                 System.exit(0);
                             }
@@ -388,68 +422,41 @@ public class AnalyzerActivity extends AppCompatActivity {
         }
     }
 
-
     private boolean hasPermission(String perm) {
         return ContextCompat.checkSelfPermission(this, perm) == PackageManager.PERMISSION_GRANTED;
     }
 
-
-    @Override
-    public void onPause() {
-        if (cameraFileUri != null) {
-            getContentResolver().notifyChange(cameraFileUri, null);
-            Log.d("conc", cameraFileUri.getPath());
-        }
-
-        if (changedBitmap != null) {
-            changedBitmap.recycle();
-            changedBitmap = null;
-        }
-        Log.d("conc", "onPause()");
-        super.onPause();
-    }
-
-
-    static {
-        OpenCVLoader.initDebug();
-    }
-
-
-    private ProgressDialog dlg;
-
-    public void analyze(View view) {
+    /**
+     * Analyzes the image or shows the result if already analyzed.
+     *
+     * @param view the view
+     */
+    public void onButtonPress(View view) {
         if (((Button) view).getText().equals("Analyze")) {
             dlg = ProgressDialog.show(this, "Analyzing", "Please wait...", true, false);
             new AnalyzeImageTask().execute();
 
         } else if (((Button) view).getText().equals("Results")) {
             SimpleRegression reg = new SimpleRegression();
-            String result = "";
-            boolean incom = false;
-            double[] intensity_array = new double[5];
-            double[] conc_array = new double[5];
-            int idx = 0;
+            boolean incomplete = false;
             for (int i = 0; i < NB_BLOBS; i++) {
                 SampleModel s = samples.get(i);
-                if (s.getDataPointType() == SampleModel.DataPointType.NONE) {
-                    //Log.d("Results", "Incomplete Data");
-                    incom = true;
+                if (s.getDataPointType() == SampleModel.DataPointType.NONE || !s.isUpdated()) {
+                    incomplete = true;
                     break;
                 } else if (s.getDataPointType() == SampleModel.DataPointType.KNOWN) {
                     reg.addData(s.getIntensity(), s.getConcentration());
-                    intensity_array[idx] = s.getIntensity();
-                    conc_array[idx] = s.getConcentration();
-                    idx++;
-                    //Log.d("Results",s.getIntensity() +","+s.getConcentration() +"," + s.getDataPointType().toString());
                 }
+            }
+            if (incomplete) {
+                Toast.makeText(this, "Incomplete Data!", Toast.LENGTH_SHORT).show();
+                return;
             }
             double slope = reg.getSlope();
             double inter = reg.getIntercept();
-
             ArrayList<SampleModel> knownSamples = new ArrayList<>();
             ArrayList<SampleModel> unKnownSamples = new ArrayList<>();
             ArrayList<SampleModel> qcSamples = new ArrayList<>();
-
             for (int i = 0; i < samples.size(); i++) {
                 SampleModel sampleModel = samples.get(i);
                 if (sampleModel.getDataPointType() == SampleModel.DataPointType.KNOWN) {
@@ -460,8 +467,6 @@ public class AnalyzerActivity extends AppCompatActivity {
                     unKnownSamples.add(sampleModel);
                 }
             }
-
-
             final Intent resultIntent = new Intent(AnalyzerActivity.this, ResultActivity.class);
             resultIntent.putExtra(INTERCEPT_KEY, inter);
             resultIntent.putExtra(SLOPE_KEY, slope);
@@ -470,85 +475,12 @@ public class AnalyzerActivity extends AppCompatActivity {
             resultIntent.putParcelableArrayListExtra(QC_SAMPLES_KEY, qcSamples);
             startActivity(resultIntent);
 
-/*
-
-            result += ("<b>Raw Equation</b></br>Conc = " + String.format("%.2f", slope) +"B + " + String.format("%.2f", inter) + "</br>B : Brightness Intensity</br>");
-            double maxErr = 0f;
-            int qc=0;
-            for(int i=0;i<NB_BLOBS;i++)
-            {
-                SampleModel s = samples.get(i);
-                if(s.getDataPointType() == SampleModel.DataPointType.QUALITY_CONTROL) {
-                    double calculated_conc = slope*s.getIntensity() + inter;
-                    double error = Math.abs(calculated_conc - s.getConcentration())/s.getConcentration();
-
-                    error *= 100;
-                    if(error > maxErr)
-                        maxErr = error;
-                    qc++;
-
-                    result += ("<b>Quality Control "+qc+"</b></br>"+"&nbsp;&nbsp;Calculated: "+ String.format("%.2f", calculated_conc) +"</br>&nbsp;&nbsp;Error: " + String.format("%.2f", error) + "%</br>");
-                }
-
-                else if(s.getDataPointType() == SampleModel.DataPointType.UNKNOWN) {
-                    double calculated_conc = slope*s.getIntensity() + inter;
-
-                    result += ("<b>Unknown Sample</b></br>"+"&nbsp;&nbsp;Calculated: "+String.format("%.2f", calculated_conc)+"</br>");
-                }
-            }
-
-            if(maxErr > 20)
-            {
-                Toast.makeText(this, "Error is greater than 20 %", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            final Dialog result_dialog = new Dialog(this);
-            result_dialog.setContentView(R.layout.dialog_result);
-
-            if(incom)
-                result = "<b>Incomplete Data</b></br>";
-
-            WebView resultTv = (WebView)result_dialog.findViewById(R.id.resultTV);
-            resultTv.setVerticalScrollBarEnabled(false);
-            resultTv.setBackgroundColor(0x00000000);
-            resultTv.loadData(result, "text/html", "utf-8");
-
-            Button Ok = (Button)result_dialog.findViewById(R.id.OK);
-            Ok.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    result_dialog.dismiss();
-
-                }
-            });
-
-            result_dialog.setCancelable(true);
-            result_dialog.setTitle("Results");
-            result_dialog.show();
-*/
-
         }
     }
 
-    public static final int NB_BLOBS = 7;
-
-    public static File saveBitmap(Bitmap bmp) throws IOException {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        bmp.compress(Bitmap.CompressFormat.JPEG, 100, bytes);
-        String path = Environment.getExternalStorageDirectory()
-                + File.separator + "ConcAnalyzer";
-        File dir = new File(path);
-        if (!dir.exists())
-            dir.mkdirs();
-        path += (File.separator + Long.toString(System.currentTimeMillis() / 1000) + ".jpg");
-        File f = new File(path);
-        f.createNewFile();
-        FileOutputStream fo = new FileOutputStream(f);
-        fo.write(bytes.toByteArray());
-        fo.close();
-        return f;
-    }
-
+    /**
+     * Updates bitmap to indicate data the that has been entered by highlighting it in red.
+     */
     public void updateBitmap() {
         Mat updated = new Mat();
         org.opencv.android.Utils.bitmapToMat(changedBitmap, updated);
@@ -564,6 +496,11 @@ public class AnalyzerActivity extends AppCompatActivity {
         updated = null;
     }
 
+    /**
+     * Segment the image to detect samples. Returns true if the detection was successful.
+     *
+     * @return true if the detection was successful.
+     */
     public boolean segmentImage() {
         if (changedBitmap != null) {
             try {
@@ -571,7 +508,6 @@ public class AnalyzerActivity extends AppCompatActivity {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-
             samples = new HashMap<>();
             rects = new Rect[NB_BLOBS];
             int rectIdx = 0;
@@ -585,24 +521,19 @@ public class AnalyzerActivity extends AppCompatActivity {
             Imgproc.medianBlur(th, th, 5);
             Mat se = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(15, 15));
             Imgproc.morphologyEx(th, th, Imgproc.MORPH_CLOSE, se);
-
-
             List<MatOfPoint> contours = new ArrayList<>();
             Mat hieh = new Mat();
             Imgproc.findContours(th, contours, hieh, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
             hieh.release();
             HashMap<Integer, Integer> dict = new HashMap<>();
-
             for (int idx = 0; idx < contours.size(); idx++) {
                 MatOfPoint contour = contours.get(idx);
                 if (isValidBlob(contour)) {
                     Rect r = Imgproc.boundingRect(contour);
                     Point center = new Point(r.x + r.width / 2, r.y + r.height / 2);
                     addToDict(dict, center);
-                    //Imgproc.rectangle(raw, new Point(r.x, r.y), new Point(r.x + r.width, r.y + r.height), new Scalar(255, 36, 0), 2);
                 }
             }
-            Log.d("dict", dict.toString());
             boolean foundSixBlobs = false;
             int centerY = 0;
             Iterator it = dict.entrySet().iterator();
@@ -624,13 +555,10 @@ public class AnalyzerActivity extends AppCompatActivity {
                 if (isValidBlob(contour)) {
                     Rect r = Imgproc.boundingRect(contour);
                     Point center = new Point(r.x + r.width / 2, r.y + r.height / 2);
-                    Log.d("conc", centerY + "," + center.y);
-
                     if (centerY - center.y > 20) {
                         sampleCandidates.add(contour);
                     }
-
-                    if (Math.abs(centerY - center.y) <= 15 && rectIdx < 6) {// || centerY-center.y > 20) {
+                    if (Math.abs(centerY - center.y) <= 15 && rectIdx < 6) {
                         if (r.x < minX)
                             minX = r.x;
                         if (r.x + r.width > maxX)
@@ -639,13 +567,11 @@ public class AnalyzerActivity extends AppCompatActivity {
                         Mat clip = new Mat(gray, r);
                         Mat clipThresh = new Mat();
                         Imgproc.threshold(clip, clipThresh, 0, 255, Imgproc.THRESH_BINARY + Imgproc.THRESH_OTSU);
-
                         double intensity_sum = 0;
                         int n = 0;
                         for (int y = 0; y < r.height; y++) {
                             for (int x = 0; x < r.width; x++) {
                                 double B = clipThresh.get(y, x)[0];
-
                                 if (B == 0) {
                                     double I = clip.get(y, x)[0];
                                     intensity_sum += I;
@@ -653,8 +579,6 @@ public class AnalyzerActivity extends AppCompatActivity {
                                 }
                             }
                         }
-
-
                         double intensity = intensity_sum / n;
                         SampleModel sample = new SampleModel(intensity);
                         samples.put(rectIdx, sample);
@@ -667,9 +591,7 @@ public class AnalyzerActivity extends AppCompatActivity {
 
                 }
             }
-
             double centerOfStandard = (minX + maxX) / 2;
-            Log.d("conc", sampleCandidates.size() + "");
             if (sampleCandidates.size() > 0) {
                 MatOfPoint sample = sampleCandidates.get(0);
                 Rect r = Imgproc.boundingRect(sample);
@@ -685,21 +607,17 @@ public class AnalyzerActivity extends AppCompatActivity {
                         sample = contour;
                     }
                 }
-
                 r = Imgproc.boundingRect(sample);
                 center = new Point(r.x + r.width / 2, r.y + r.height / 2);
-
                 rects[rectIdx] = new Rect(r.x, r.y, r.width, r.height);
                 Mat clip = new Mat(gray, r);
                 Mat clipThresh = new Mat();
                 Imgproc.threshold(clip, clipThresh, 0, 255, Imgproc.THRESH_BINARY + Imgproc.THRESH_OTSU);
-
                 double intensity_sum = 0;
                 int n = 0;
                 for (int y = 0; y < r.height; y++) {
                     for (int x = 0; x < r.width; x++) {
                         double B = clipThresh.get(y, x)[0];
-
                         if (B == 0) {
                             double I = clip.get(y, x)[0];
                             intensity_sum += I;
@@ -707,110 +625,21 @@ public class AnalyzerActivity extends AppCompatActivity {
                         }
                     }
                 }
-
-
                 double intensity = intensity_sum / n;
-                SampleModel sampl = new SampleModel(intensity);
-                samples.put(rectIdx, sampl);
+                SampleModel sampleModel = new SampleModel(intensity);
+                samples.put(rectIdx, sampleModel);
                 rectIdx++;
                 Imgproc.rectangle(raw, new Point(r.x, r.y), new Point(r.x + r.width, r.y + r.height), new Scalar(0, 255, 0), 2);
                 clip.release();
                 clipThresh.release();
             }
-/*
-
-            //Imgproc.cvtColor(raw, raw, Imgproc.COLOR_RGB2GRAY);
-            double maxH = 0;
-            Mat thresh = new Mat();
-            Core.inRange(hsv, new Scalar(H_MIN, S_MIN, V_MIN), new Scalar(H_MAX, S_MAX, V_MAX), thresh);
-            Imgproc.medianBlur(thresh, thresh, 5);
-           // org.opencv.android.ImageUtils.matToBitmap(thresh, changedBitmap);
-
-
-            List<MatOfPoint> conts = new ArrayList<>();
-
-
-            Imgproc.findContours(thresh, conts, hieh, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
-            hieh.release();
-            if(conts.size() < 7)
-                return false;
-
-            Collections.sort(conts, new Comparator<MatOfPoint>() {
-                @Override
-                public int compare(MatOfPoint lhs, MatOfPoint rhs) {
-                    double i = Imgproc.contourArea(lhs);
-                    double j = Imgproc.contourArea(rhs);
-                    if (i < j)
-                        return 1;
-                    if (i > j)
-                        return -1;
-                    return 0;
-                }
-            });
-
-            Log.d(getClass().getName(), "" + conts.size());
-
-            double intensities[] = new double[NB_BLOBS];
-            rects = new Rect[NB_BLOBS];
-
-            for(int idx=0;idx<NB_BLOBS;idx++)
-            {
-                Rect r = Imgproc.boundingRect(conts.get(idx));
-
-                rects[idx] = r;
-                double intensity_sum = 0;
-                int n = 0;
-                for(int x = r.x; x<=r.x + r.width; x++)
-                {
-                    for(int y = r.y; y<=r.y + r.height; y++)
-                    {
-                        double B = thresh.get(y,x)[0];
-
-                        if(B > 0)
-                        {
-                            double I = raw.get(y,x)[0];
-                            intensity_sum += I;
-                            n += 1;
-                        }
-                    }
-                }
-
-                double intensity = intensity_sum / n;
-                //Log.d("opencv",intensity+"");
-                intensities[idx] = intensity;
-                SampleModel sample = new SampleModel(intensity);
-                samples.put(idx,sample);
-            }
-            thresh.release();
-            raw.release();
-            hsv.release();
-
-            hsv = null;
-            thresh = null;
-            conts.clear();
-            conts = null;
-
-            raw = new Mat();
-            org.opencv.android.ImageUtils.bitmapToMat(changedBitmap, raw);
-
-            for(int idx=0;idx<NB_BLOBS;idx++) {
-                Rect r = rects[idx];
-                Imgproc.rectangle(raw, new Point(r.x, r.y), new Point(r.x + r.width, r.y + r.height), new Scalar(255, 36, 0),3);
-                Imgproc.putText(raw, Integer.toString(idx), new Point(r.x, r.y), 3, 2, new Scalar(255, 36, 0),2);
-            }
-*/
-
             org.opencv.android.Utils.matToBitmap(raw, changedBitmap);
-
-            //imageView.setImageBitmap(changedBitmap);
-
             raw.release();
             gray.release();
             th.release();
             if (rectIdx == 7)
                 return true;
         }
-
         return false;
     }
 
@@ -829,7 +658,6 @@ public class AnalyzerActivity extends AppCompatActivity {
         }
         if (!found)
             dict.put((int) center.y, 1);
-        //Log.d("dict", found+","+dict.toString()+","+dict.size());
     }
 
     private boolean isValidBlob(MatOfPoint contour) {
@@ -849,10 +677,45 @@ public class AnalyzerActivity extends AppCompatActivity {
         return flag;
     }
 
-    private Rect[] rects;
-
     private boolean isDemoOn() {
-        return prefs.getBoolean("demoMode", true);
+        return prefs.getBoolean(DEMO_MODE_KEY, true);
+    }
+
+    private void setValuesAutomatically() {
+        ArrayList<IdAbscissaMap> idXMap = new ArrayList<>();
+        for (int idx = 0; idx < rects.length - 1; idx++) {
+            IdAbscissaMap iam = new IdAbscissaMap(rects[idx].x, idx);
+            idXMap.add(iam);
+        }
+        Collections.sort(idXMap);
+        double[] concentrations = new double[]{100, 150, 200, 250, 300, 350};
+        for (int idx = 0; idx < idXMap.size(); idx++) {
+            int _id = idXMap.get(idx).getId();
+            SampleModel sm = samples.get(_id);
+            sm.setConcentration(concentrations[idx]);
+            if (idx != 2)
+                sm.setDataPointType(SampleModel.DataPointType.KNOWN);
+            else
+                sm.setDataPointType(SampleModel.DataPointType.QUALITY_CONTROL);
+            sm.setUpdated(true);
+        }
+        samples.get(rects.length - 1).setDataPointType(SampleModel.DataPointType.UNKNOWN);
+        samples.get(rects.length - 1).setUpdated(true);
+        updateBitmap();
+    }
+
+    private class AsyncScaleImage extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Void... v) {
+            changedBitmap = ImageUtils.lessResolution(pictureFilePath, 600);
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void v) {
+            imageView.setImageBitmap(changedBitmap);
+        }
     }
 
     private class AnalyzeImageTask extends AsyncTask<Void, Void, Boolean> {
@@ -869,7 +732,7 @@ public class AnalyzerActivity extends AppCompatActivity {
                 dlg.dismiss();
             if (b) {
                 imageView.setImageBitmap(changedBitmap);
-                ((Button) AnalyzerActivity.this.findViewById(R.id.analyze)).setText("Results");
+                ((Button) AnalyzerActivity.this.findViewById(R.id.analyze)).setText(R.string.resultsText);
                 analyzedCorrectly = true;
                 if (isDemoOn())
                     setValuesAutomatically();
@@ -877,30 +740,6 @@ public class AnalyzerActivity extends AppCompatActivity {
                 Toast.makeText(AnalyzerActivity.this, "Could not detect ROIs", Toast.LENGTH_SHORT).show();
             }
         }
-    }
-
-    private void setValuesAutomatically() {
-        ArrayList<IdAbscissaMap> idXMap = new ArrayList<>();
-        for (int idx = 0; idx < rects.length - 1; idx++) {
-            IdAbscissaMap iam = new IdAbscissaMap(rects[idx].x, idx);
-            idXMap.add(iam);
-        }
-
-        Collections.sort(idXMap);
-        double[] concentrations = new double[]{100, 150, 200, 250, 300, 350};
-        for (int idx = 0; idx < idXMap.size(); idx++) {
-            int _id = idXMap.get(idx).getId();
-            SampleModel sm = samples.get(_id);
-            sm.setConcentration(concentrations[idx]);
-            if (idx != 2)
-                sm.setDataPointType(SampleModel.DataPointType.KNOWN);
-            else
-                sm.setDataPointType(SampleModel.DataPointType.QUALITY_CONTROL);
-            sm.setUpdated(true);
-        }
-        samples.get(rects.length - 1).setDataPointType(SampleModel.DataPointType.UNKNOWN);
-        samples.get(rects.length - 1).setUpdated(true);
-        updateBitmap();
     }
 }
 
