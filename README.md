@@ -1,6 +1,6 @@
 # Blood Analysis App
 
-This repository contains the sources for GSoC 2016 project named **Mobile Based Blood Analysis** with Computational Biology @ **University of Nebraska-Lincoln**. 
+This repository contains the sources for GSoC 2016 project named [**Mobile Based Blood Analysis**](https://summerofcode.withgoogle.com/projects/#4860676891738112) with Computational Biology @ **University of Nebraska-Lincoln**. 
 
 ## Introduction
 
