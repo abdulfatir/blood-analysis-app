@@ -71,7 +71,7 @@ public class AnalyzerActivity extends AppCompatActivity {
     /**
      * The number of blobs to detect.
      */
-    public static final int NB_BLOBS = 7;
+    private static int NB_BLOBS;
     private static final String KNOWN_SAMPLES_KEY = "KNOWN_SAMPLES";
     private static final String UNKNOWN_SAMPLES_KEY = "UNKNOWN_SAMPLES";
     private static final String QC_SAMPLES_KEY = "QC_SAMPLES";
@@ -163,6 +163,15 @@ public class AnalyzerActivity extends AppCompatActivity {
         }
         choice = getIntent().getIntExtra(Consts.CHOICE_KEY, -1);
         prefs = getSharedPreferences(Consts.PREFS_NAME, MODE_PRIVATE);
+        switch (prefs.getInt(Consts.CARD_TYPE_KEY, 0))
+        {
+            case Consts.SIX_SAMPLE_CARD:
+                NB_BLOBS = 7;
+                break;
+            case Consts.FIVE_SAMPLE_CARD:
+                NB_BLOBS = 6;
+                break;
+        }
         imageView = (ImageView) findViewById(R.id.imageView);
         final Dialog sampleData = new Dialog(this);
         sampleData.setContentView(R.layout.dialog_sample_data);
@@ -540,7 +549,7 @@ public class AnalyzerActivity extends AppCompatActivity {
             while (it.hasNext()) {
                 Map.Entry pair = (Map.Entry) it.next();
                 int value = (int) pair.getValue();
-                if (value == 6) {
+                if (value == NB_BLOBS-1) { // changed
                     centerY = (int) pair.getKey();
                     foundSixBlobs = true;
                 }
@@ -558,7 +567,7 @@ public class AnalyzerActivity extends AppCompatActivity {
                     if (centerY - center.y > 20) {
                         sampleCandidates.add(contour);
                     }
-                    if (Math.abs(centerY - center.y) <= 15 && rectIdx < 6) {
+                    if (Math.abs(centerY - center.y) <= 15 && rectIdx < NB_BLOBS-1) { // changed
                         if (r.x < minX)
                             minX = r.x;
                         if (r.x + r.width > maxX)
@@ -637,7 +646,7 @@ public class AnalyzerActivity extends AppCompatActivity {
             raw.release();
             gray.release();
             th.release();
-            if (rectIdx == 7)
+            if (rectIdx == NB_BLOBS) // changed
                 return true;
         }
         return false;
@@ -677,8 +686,78 @@ public class AnalyzerActivity extends AppCompatActivity {
         return flag;
     }
 
-    private boolean isDemoOn() {
-        return prefs.getBoolean(DEMO_MODE_KEY, true);
+    private boolean isDemoOrAuto() {
+        int mode = prefs.getInt(Consts.MODE_KEY, 0);
+        return mode == Consts.DEMO_MODE || mode == Consts.AUTO_MODE;
+    }
+
+    private double[] getDefaultValues()
+    {
+        if(NB_BLOBS == 6)
+        {
+            if(prefs.getInt(Consts.MODE_KEY, 0) == Consts.DEMO_MODE)
+            {
+                return new double[]{150, 175, 200, 225, 250};
+            }
+            else if(prefs.getInt(Consts.MODE_KEY, 0) == Consts.AUTO_MODE)
+            {
+                String[] defVals = prefs.getString(Consts.DEFAULT_VALUES_KEY, "").split("\\s");
+                if(defVals.length == 5)
+                {
+                    double concs[] = new double[5];
+                    for(int i=0;i<5;i++)
+                        concs[i] = Double.parseDouble(defVals[i]);
+                    return concs;
+                }
+                else
+                {
+                    Toast.makeText(this, "Defaults values not set! Using demo values.", Toast.LENGTH_SHORT).show();
+                    return new double[]{150, 175, 200, 225, 250};
+                }
+            }
+        }
+        else
+        {
+            if(prefs.getInt(Consts.MODE_KEY, 0) == Consts.DEMO_MODE)
+            {
+                return new double[]{150, 175, 200, 225, 250, 300};
+            }
+            else if(prefs.getInt(Consts.MODE_KEY, 0) == Consts.AUTO_MODE)
+            {
+                String[] defVals = prefs.getString(Consts.DEFAULT_VALUES_KEY, "").split("\\s");
+                if(defVals.length == 6)
+                {
+                    double concs[] = new double[6];
+                    for(int i=0;i<6;i++)
+                        concs[i] = Double.parseDouble(defVals[i]);
+                    return concs;
+                }
+                else
+                {
+                    Toast.makeText(this, "Defaults values not set! Using demo values.", Toast.LENGTH_SHORT).show();
+                    return new double[]{150, 175, 200, 225, 250, 300};
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private String getQCIndices()
+    {
+        if(prefs.getInt(Consts.MODE_KEY, 0) == Consts.DEMO_MODE)
+        {
+            return "2";
+        }
+        else if(prefs.getInt(Consts.MODE_KEY, 0) == Consts.AUTO_MODE)
+        {
+            String indices = prefs.getString(Consts.QC_INDICES_KEY,"");
+            if(indices.length() == 0)
+                return "2";
+            else
+                return indices;
+        }
+        return "2";
     }
 
     private void setValuesAutomatically() {
@@ -688,12 +767,13 @@ public class AnalyzerActivity extends AppCompatActivity {
             idXMap.add(iam);
         }
         Collections.sort(idXMap);
-        double[] concentrations = new double[]{100, 150, 200, 250, 300, 350};
+        String qcIndices = getQCIndices();
+        double[] concentrations = getDefaultValues(); //, 300};//150, 175, 200, 225, 250, 300; 100, 150, 200, 250, 300, 350
         for (int idx = 0; idx < idXMap.size(); idx++) {
             int _id = idXMap.get(idx).getId();
             SampleModel sm = samples.get(_id);
             sm.setConcentration(concentrations[idx]);
-            if (idx != 2)
+            if (!qcIndices.contains(String.valueOf(idx)))
                 sm.setDataPointType(SampleModel.DataPointType.KNOWN);
             else
                 sm.setDataPointType(SampleModel.DataPointType.QUALITY_CONTROL);
@@ -722,8 +802,7 @@ public class AnalyzerActivity extends AppCompatActivity {
 
         @Override
         protected Boolean doInBackground(Void... params) {
-            boolean result = segmentImage();
-            return result;
+            return segmentImage();
         }
 
         @Override
@@ -734,7 +813,7 @@ public class AnalyzerActivity extends AppCompatActivity {
                 imageView.setImageBitmap(changedBitmap);
                 ((Button) AnalyzerActivity.this.findViewById(R.id.analyze)).setText(R.string.resultsText);
                 analyzedCorrectly = true;
-                if (isDemoOn())
+                if (isDemoOrAuto())
                     setValuesAutomatically();
             } else {
                 Toast.makeText(AnalyzerActivity.this, "Could not detect ROIs", Toast.LENGTH_SHORT).show();

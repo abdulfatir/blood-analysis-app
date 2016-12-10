@@ -9,4 +9,15 @@
     <string name="instructionsText">Instructions</string>
     <string name="analyzeText">Analyze</string>
     <string name="resultsText">Results</string>
+    <string name="card_type">Card Type</string>
+    <string name="mode">Mode</string>
+    <string name="apply">Apply</string>
+    <string-array name="card_types">
+        <item>6-sample</item>
+        <item>5-sample</item>
+    </string-array>
+    <string-array name="sample_types">
+        <item>Known</item>
+        <item>Quality Control</item>
+    </string-array>
 </resources>

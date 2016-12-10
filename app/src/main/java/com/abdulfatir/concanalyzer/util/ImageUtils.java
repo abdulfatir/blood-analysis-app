@@ -84,6 +84,7 @@ public class ImageUtils {
         }
         try {
             Bitmap bmRotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            Log.d("debug", "done!");
             bitmap.recycle();
             bitmap = null;
             return bmRotated;

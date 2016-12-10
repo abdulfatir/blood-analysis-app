@@ -4,23 +4,129 @@
     android:layout_height="wrap_content"
     android:padding="10dp">
 
-    <CheckBox
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/cardOption">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/card_type"
+            android:textColor="#000"
+            android:textStyle="bold"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:id="@+id/cardType"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_toLeftOf="@+id/cardType"
+            android:layout_centerVertical="true"
+            android:background="#999"
+            android:layout_marginRight="10dp"
+            android:layout_marginLeft="10dp"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_toRightOf="@+id/cardType"
+            android:layout_centerVertical="true"
+            android:background="#999"
+            android:layout_marginRight="10dp"
+            android:layout_marginLeft="10dp"/>
+
+
+    </RelativeLayout>
+
+    
+    <Spinner
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/demo"
-        android:text="Demo Mode"
-        android:checked="false" />
+        android:layout_below="@+id/cardOption"
+        android:layout_marginTop="5dp"
+        android:layout_marginBottom="15dp"
+        android:layout_centerHorizontal="true"
+        android:id="@+id/cardChooser"
+        android:spinnerMode="dropdown"
+        android:entries="@array/card_types">
+    </Spinner>
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/modeOption"
+        android:layout_below="@+id/cardChooser">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/mode"
+            android:textColor="#000"
+            android:textStyle="bold"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:id="@+id/mode"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_toLeftOf="@+id/mode"
+            android:layout_centerVertical="true"
+            android:background="#999"
+            android:layout_marginRight="10dp"
+            android:layout_marginLeft="10dp"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_toRightOf="@+id/mode"
+            android:layout_centerVertical="true"
+            android:background="#999"
+            android:layout_marginRight="10dp"
+            android:layout_marginLeft="10dp"/>
+
+
+    </RelativeLayout>
+    
+    
+    <RadioGroup
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/modeOption"
+        android:id="@+id/modeChooser">
+        <RadioButton
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Demo"
+            android:id="@+id/demo"
+            android:checked="true"/>
+        <RadioButton
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/auto"
+            android:text="Automatic"/>
+        <RadioButton
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/manual"
+            android:text="Manual"/>
+    </RadioGroup>
+
+
 
     <android.support.v4.widget.Space
         android:layout_width="match_parent"
-        android:layout_below="@+id/demo"
+        android:layout_below="@+id/modeChooser"
         android:id="@+id/spacer"
         android:layout_height="15dp" />
 
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Apply"
+        android:text="@string/apply"
         android:id="@+id/apply"
         android:layout_below="@+id/spacer"
         android:layout_centerHorizontal="true"
