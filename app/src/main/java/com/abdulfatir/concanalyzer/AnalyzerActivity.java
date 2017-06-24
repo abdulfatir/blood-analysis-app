@@ -18,6 +18,7 @@ import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.support.annotation.Nullable;
+import android.support.annotation.StringDef;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -68,6 +69,7 @@ public class AnalyzerActivity extends AppCompatActivity {
 
     public static final String IMAGE_KEY = "IMAGE";
     public static final String DEMO_MODE_KEY = "demoMode";
+
     /**
      * The number of blobs to detect.
      */
@@ -77,6 +79,7 @@ public class AnalyzerActivity extends AppCompatActivity {
     private static final String QC_SAMPLES_KEY = "QC_SAMPLES";
     private static final String SLOPE_KEY = "SLOPE";
     private static final String INTERCEPT_KEY = "INTERCEPT";
+    private static final String R2SCORE_KEY = "R2SCORE";
     private static final String DECIMAL_NO_REGEX = "^\\d{1,5}(\\.|\\.\\d+)?$";
     private static final int PERMISSION_STORAGE = 2345;
 
@@ -239,7 +242,7 @@ public class AnalyzerActivity extends AppCompatActivity {
                         for (int idx = 0; idx < rects.length; idx++) {
                             if (rects[idx].contains(new Point(imC[0], imC[1]))) {
                                 SampleModel s = samples.get(idx);
-                                intensityET.setText(String.format(Locale.getDefault(), "%.2f", s.getIntensity()));
+                                intensityET.setText(String.format(Locale.getDefault(), "%.2f", s.getIntensities()[1]));
                                 concET.setText(String.format(Locale.getDefault(), "%.2f", s.getConcentration()));
                                 if (s.getConcentration() == 0)
                                     concET.setText("");
@@ -446,7 +449,9 @@ public class AnalyzerActivity extends AppCompatActivity {
             new AnalyzeImageTask().execute();
 
         } else if (((Button) view).getText().equals("Results")) {
-            SimpleRegression reg = new SimpleRegression();
+            SimpleRegression regR = new SimpleRegression();
+            SimpleRegression regG = new SimpleRegression();
+            SimpleRegression regB = new SimpleRegression();
             boolean incomplete = false;
             for (int i = 0; i < NB_BLOBS; i++) {
                 SampleModel s = samples.get(i);
@@ -454,15 +459,19 @@ public class AnalyzerActivity extends AppCompatActivity {
                     incomplete = true;
                     break;
                 } else if (s.getDataPointType() == SampleModel.DataPointType.KNOWN) {
-                    reg.addData(s.getIntensity(), s.getConcentration());
+                    regR.addData(s.getConcentration(), s.getIntensities()[0]);
+                    regG.addData(s.getConcentration(), s.getIntensities()[1]);
+                    regB.addData(s.getConcentration(), s.getIntensities()[2]);
                 }
             }
             if (incomplete) {
                 Toast.makeText(this, "Incomplete Data!", Toast.LENGTH_SHORT).show();
                 return;
             }
-            double slope = reg.getSlope();
-            double inter = reg.getIntercept();
+
+            double slopes[] = new double[]{regR.getSlope(), regG.getSlope(), regB.getSlope()};
+            double intercepts[] = new double[]{regR.getIntercept(), regG.getIntercept(), regB.getIntercept()};
+            double r2Scores[] = new double[]{regR.getRSquare(), regG.getRSquare(), regB.getRSquare()};
             ArrayList<SampleModel> knownSamples = new ArrayList<>();
             ArrayList<SampleModel> unKnownSamples = new ArrayList<>();
             ArrayList<SampleModel> qcSamples = new ArrayList<>();
@@ -477,8 +486,9 @@ public class AnalyzerActivity extends AppCompatActivity {
                 }
             }
             final Intent resultIntent = new Intent(AnalyzerActivity.this, ResultActivity.class);
-            resultIntent.putExtra(INTERCEPT_KEY, inter);
-            resultIntent.putExtra(SLOPE_KEY, slope);
+            resultIntent.putExtra(INTERCEPT_KEY, intercepts);
+            resultIntent.putExtra(SLOPE_KEY, slopes);
+            resultIntent.putExtra(R2SCORE_KEY, r2Scores);
             resultIntent.putParcelableArrayListExtra(KNOWN_SAMPLES_KEY, knownSamples);
             resultIntent.putParcelableArrayListExtra(UNKNOWN_SAMPLES_KEY, unKnownSamples);
             resultIntent.putParcelableArrayListExtra(QC_SAMPLES_KEY, qcSamples);
@@ -573,28 +583,68 @@ public class AnalyzerActivity extends AppCompatActivity {
                         if (r.x + r.width > maxX)
                             maxX = r.x + r.width;
                         rects[rectIdx] = new Rect(r.x, r.y, r.width, r.height);
-                        Mat clip = new Mat(gray, r);
-                        Mat clipThresh = new Mat();
-                        Imgproc.threshold(clip, clipThresh, 0, 255, Imgproc.THRESH_BINARY + Imgproc.THRESH_OTSU);
-                        double intensity_sum = 0;
-                        int n = 0;
-                        for (int y = 0; y < r.height; y++) {
-                            for (int x = 0; x < r.width; x++) {
-                                double B = clipThresh.get(y, x)[0];
-                                if (B == 0) {
-                                    double I = clip.get(y, x)[0];
-                                    intensity_sum += I;
-                                    n += 1;
-                                }
+
+                        Rect rSmall = new Rect(r.x+10, r.y+10, r.width-20, r.height-20);
+                        Log.d("conc", String.valueOf(rSmall.width)+","+String.valueOf(rSmall.height));
+                        Mat clip = new Mat(raw, rSmall);
+//                        Mat clipThresh = new Mat();
+//                        Imgproc.threshold(clip, clipThresh, 0, 255, Imgproc.THRESH_BINARY + Imgproc.THRESH_OTSU);
+//                        double intensity_sum = 0;
+//                        int n = 0;
+                        int bins[][] = new int[3][256];
+                        for (int y = 0; y < r.height-20; y++) {
+                            for (int x = 0; x < r.width-20; x++) {
+//                                double B = clipThresh.get(y, x)[0];
+//                                if (B == 0) {
+//                                    double I = clip.get(y, x)[0];
+//                                    intensity_sum += I;
+//                                    n += 1;
+                                    bins[0][(int)clip.get(y, x)[0]]++;
+                                    bins[1][(int)clip.get(y, x)[1]]++;
+                                    bins[2][(int)clip.get(y, x)[2]]++;
+//                                }
                             }
                         }
-                        double intensity = intensity_sum / n;
-                        SampleModel sample = new SampleModel(intensity);
+                        double mostFrequentIntensity = -1;
+                        int frequency=-1;
+                        for(int i=0; i<bins[0].length; i++)
+                        {
+                            if(bins[0][i] > frequency)
+                            {
+                                frequency = bins[0][i];
+                                mostFrequentIntensity = i;
+                            }
+                        }
+                        double redIntensity = mostFrequentIntensity;
+                        mostFrequentIntensity = -1;
+                        frequency=-1;
+                        for(int i=0; i<bins[1].length; i++)
+                        {
+                            if(bins[1][i] > frequency)
+                            {
+                                frequency = bins[1][i];
+                                mostFrequentIntensity = i;
+                            }
+                        }
+                        double greenIntensity = mostFrequentIntensity;
+                        mostFrequentIntensity = -1;
+                        frequency=-1;
+                        for(int i=0; i<bins[2].length; i++)
+                        {
+                            if(bins[2][i] > frequency)
+                            {
+                                frequency = bins[2][i];
+                                mostFrequentIntensity = i;
+                            }
+                        }
+                        double blueIntensity = mostFrequentIntensity;
+                        SampleModel sample = new SampleModel(redIntensity, greenIntensity, blueIntensity);
                         samples.put(rectIdx, sample);
                         rectIdx++;
                         Imgproc.rectangle(raw, new Point(r.x, r.y), new Point(r.x + r.width, r.y + r.height), new Scalar(0, 255, 0), 2);
+                        //Imgproc.rectangle(raw, new Point(rSmall.x, rSmall.y), new Point(rSmall.x + rSmall.width, rSmall.y + rSmall.height), new Scalar(0, 0, 255), 1);
                         clip.release();
-                        clipThresh.release();
+//                        clipThresh.release();
 
                     }
 
@@ -619,28 +669,65 @@ public class AnalyzerActivity extends AppCompatActivity {
                 r = Imgproc.boundingRect(sample);
                 center = new Point(r.x + r.width / 2, r.y + r.height / 2);
                 rects[rectIdx] = new Rect(r.x, r.y, r.width, r.height);
-                Mat clip = new Mat(gray, r);
-                Mat clipThresh = new Mat();
-                Imgproc.threshold(clip, clipThresh, 0, 255, Imgproc.THRESH_BINARY + Imgproc.THRESH_OTSU);
-                double intensity_sum = 0;
-                int n = 0;
-                for (int y = 0; y < r.height; y++) {
-                    for (int x = 0; x < r.width; x++) {
-                        double B = clipThresh.get(y, x)[0];
-                        if (B == 0) {
-                            double I = clip.get(y, x)[0];
-                            intensity_sum += I;
-                            n += 1;
-                        }
+                Rect rSmall = new Rect(r.x+10, r.y+10, r.width-20, r.height-20);
+                Log.d("conc", String.valueOf(rSmall.width)+","+String.valueOf(rSmall.height));
+                Mat clip = new Mat(raw, rSmall);
+//                Mat clipThresh = new Mat();
+//                Imgproc.threshold(clip, clipThresh, 0, 255, Imgproc.THRESH_BINARY + Imgproc.THRESH_OTSU);
+                int bins[][] = new int[3][256];
+                for (int y = 0; y < r.height-20; y++) {
+                    for (int x = 0; x < r.width-20; x++) {
+//                                double B = clipThresh.get(y, x)[0];
+//                                if (B == 0) {
+//                                    double I = clip.get(y, x)[0];
+//                                    intensity_sum += I;
+//                                    n += 1;
+                        bins[0][(int)clip.get(y, x)[0]]++;
+                        bins[1][(int)clip.get(y, x)[1]]++;
+                        bins[2][(int)clip.get(y, x)[2]]++;
+//                                }
                     }
                 }
-                double intensity = intensity_sum / n;
-                SampleModel sampleModel = new SampleModel(intensity);
+                double mostFrequentIntensity = -1;
+                int frequency=-1;
+                for(int i=0; i<bins[0].length; i++)
+                {
+                    if(bins[0][i] > frequency)
+                    {
+                        frequency = bins[0][i];
+                        mostFrequentIntensity = i;
+                    }
+                }
+                double redIntensity = mostFrequentIntensity;
+                mostFrequentIntensity = -1;
+                frequency=-1;
+                for(int i=0; i<bins[1].length; i++)
+                {
+                    if(bins[1][i] > frequency)
+                    {
+                        frequency = bins[1][i];
+                        mostFrequentIntensity = i;
+                    }
+                }
+                double greenIntensity = mostFrequentIntensity;
+                mostFrequentIntensity = -1;
+                frequency=-1;
+                for(int i=0; i<bins[2].length; i++)
+                {
+                    if(bins[2][i] > frequency)
+                    {
+                        frequency = bins[2][i];
+                        mostFrequentIntensity = i;
+                    }
+                }
+                double blueIntensity = mostFrequentIntensity;
+                SampleModel sampleModel = new SampleModel(redIntensity, greenIntensity, blueIntensity);
                 samples.put(rectIdx, sampleModel);
                 rectIdx++;
                 Imgproc.rectangle(raw, new Point(r.x, r.y), new Point(r.x + r.width, r.y + r.height), new Scalar(0, 255, 0), 2);
+                //Imgproc.rectangle(raw, new Point(rSmall.x, rSmall.y), new Point(rSmall.x + rSmall.width, rSmall.y + rSmall.height), new Scalar(0, 0, 255), 1);
                 clip.release();
-                clipThresh.release();
+//                clipThresh.release();
             }
             org.opencv.android.Utils.matToBitmap(raw, changedBitmap);
             raw.release();
@@ -697,7 +784,7 @@ public class AnalyzerActivity extends AppCompatActivity {
         {
             if(prefs.getInt(Consts.MODE_KEY, 0) == Consts.DEMO_MODE)
             {
-                return new double[]{150, 175, 200, 225, 250};
+                return new double[]{50, 75, 100, 125, 150};
             }
             else if(prefs.getInt(Consts.MODE_KEY, 0) == Consts.AUTO_MODE)
             {
@@ -712,7 +799,7 @@ public class AnalyzerActivity extends AppCompatActivity {
                 else
                 {
                     Toast.makeText(this, "Defaults values not set! Using demo values.", Toast.LENGTH_SHORT).show();
-                    return new double[]{150, 175, 200, 225, 250};
+                    return new double[]{50, 75, 100, 125, 150};
                 }
             }
         }

@@ -3,9 +3,13 @@ package com.abdulfatir.concanalyzer;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.support.design.widget.TabLayout;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentPagerAdapter;
+import android.support.v4.view.ViewPager;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,9 +30,9 @@ import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.data.ScatterData;
 import com.github.mikephil.charting.data.ScatterDataSet;
-import com.github.mikephil.charting.utils.ColorTemplate;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -41,10 +45,13 @@ public class ResultActivity extends AppCompatActivity {
     private static final String QC_SAMPLES_KEY = "QC_SAMPLES";
     private static final String SLOPE_KEY = "SLOPE";
     private static final String INTERCEPT_KEY = "INTERCEPT";
+    private static final String R2SCORE_KEY = "R2SCORE";
+    private static final String CHANNEL_KEY = "CHANNEL";
     private CombinedChart mChart;
-    private double mSlope;
-    private double mIntercept;
-    private LinearFunction mStandardCurve;
+    private double[] mSlopes;
+    private double[] mIntercepts;
+    private LinearFunction[] mStandardCurves;
+    private double[] mR2Scores;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,139 +62,99 @@ public class ResultActivity extends AppCompatActivity {
         bar.setDisplayHomeAsUpEnabled(false);
         bar.setHomeButtonEnabled(false);
         Bundle bundle = getIntent().getExtras();
-        mSlope = bundle.getDouble(SLOPE_KEY);
-        mIntercept = bundle.getDouble(INTERCEPT_KEY);
+        mSlopes = bundle.getDoubleArray(SLOPE_KEY);
+        mIntercepts = bundle.getDoubleArray(INTERCEPT_KEY);
+        mR2Scores = bundle.getDoubleArray(R2SCORE_KEY);
         ArrayList<SampleModel> knownSamples = bundle.getParcelableArrayList(KNOWN_SAMPLES_KEY);
         ArrayList<SampleModel> unKnownSamples = bundle.getParcelableArrayList(UNKNOWN_SAMPLES_KEY);
         ArrayList<SampleModel> qcSamples = bundle.getParcelableArrayList(QC_SAMPLES_KEY);
-        TextView eqTv = (TextView) findViewById(R.id.equation);
-        eqTv.setTypeface(Typeface.SANS_SERIF, Typeface.BOLD_ITALIC);
-        LinearLayout mainContent = (LinearLayout) findViewById(R.id.content);
-        LinearFunction linearFunction = new LinearFunction(mIntercept, mSlope);
-        mStandardCurve = linearFunction.swapAxes();
-        mStandardCurve.setIntercept(mStandardCurve.getIntercept() + 255);
-        eqTv.setText(mStandardCurve.toString());
-        for (int i = 0; i < qcSamples.size(); i++)
-            mainContent.addView(addSubView(mainContent, qcSamples.get(i), "Quality Control"));
-        for (int i = 0; i < unKnownSamples.size(); i++)
-            mainContent.addView(addSubView(mainContent, unKnownSamples.get(i), "Unknown"));
-        mChart = (CombinedChart) findViewById(R.id.graph);
-        mChart.setDescription("");
-        mChart.setNoDataTextDescription("No data to display.");
-        mChart.setTouchEnabled(true);
-        mChart.setDragDecelerationFrictionCoef(0.9f);
-        mChart.setDragEnabled(true);
-        mChart.setScaleEnabled(true);
-        mChart.setDrawGridBackground(false);
-        mChart.setHighlightPerDragEnabled(true);
-        mChart.setPinchZoom(true);
-        mChart.setBackgroundColor(Color.WHITE);
-        mChart.getAxisRight().setEnabled(false);
-        XAxis mXaxis = mChart.getXAxis();
-        mXaxis.setDrawGridLines(false);
-        mXaxis.setPosition(XAxis.XAxisPosition.BOTTOM);
-        mXaxis.setAxisMinValue(0);
-        mXaxis.setGranularity(1f);
-        Legend l = mChart.getLegend();
-        l.setWordWrapEnabled(true);
-        l.setPosition(Legend.LegendPosition.RIGHT_OF_CHART_INSIDE);
-        YAxis leftAxis = mChart.getAxisLeft();
-        leftAxis.setTextColor(Color.BLACK);
-        leftAxis.setAxisMaxValue(255f);
-        leftAxis.setAxisMinValue(0f);
-        leftAxis.setDrawGridLines(false);
-        CombinedData cData = new CombinedData();
-        ScatterData scatterData = new ScatterData();
-        scatterData.addDataSet(generateKnownScatterData(knownSamples));
-        scatterData.addDataSet(generateUnKnownScatterData(unKnownSamples));
-        scatterData.addDataSet(generateQCScatterData(qcSamples));
-        cData.setData(generateStandardCurveData());
-        cData.setData(scatterData);
-        mChart.setData(cData);
-        mChart.invalidate();
+        ViewPager viewPager = (ViewPager) findViewById(R.id.viewPager);
+        setupViewPager(viewPager, knownSamples, unKnownSamples, qcSamples);
+        TabLayout tabLayout = (TabLayout) findViewById(R.id.tabLayout);
+        tabLayout.setupWithViewPager(viewPager);
+
 
     }
 
-    private View addSubView(ViewGroup mainContent, SampleModel sampleModel, String s) {
-        double intensity = sampleModel.getIntensity();
-        double concentration = mSlope * intensity + mIntercept;
-        View layout = LayoutInflater.from(this).inflate(R.layout.layout_quality_control, mainContent, false);
-        TextView titleTV = (TextView) layout.findViewById(R.id.textView2);
-        TextView concTV = (TextView) layout.findViewById(R.id.textView3);
-        TextView errorTV = (TextView) layout.findViewById(R.id.textView4);
-        titleTV.setText(s);
-        concTV.setText(String.format(Locale.getDefault(), "%s%.2f ng/mL", "Concentration: ", concentration));
-        if (sampleModel.getDataPointType() == SampleModel.DataPointType.QUALITY_CONTROL) {
-            double error = Math.abs(concentration - sampleModel.getConcentration()) / sampleModel.getConcentration();
-            error *= 100;
-            if (error > 20)
-                Toast.makeText(this, "Error is greater than 20%", Toast.LENGTH_SHORT).show();
-            errorTV.setText(String.format(Locale.getDefault(), "%s%.1f%%", "Error: ", error));
-        } else if (sampleModel.getDataPointType() == SampleModel.DataPointType.UNKNOWN) {
-            errorTV.setVisibility(View.GONE);
+    public double getSlope(int channel)
+    {
+        return mSlopes[channel];
+    }
+
+    public double getIntercept(int channel)
+    {
+        return mIntercepts[channel];
+    }
+
+    public double getRSquared(int channel)
+    {
+        return mR2Scores[channel];
+    }
+
+    private void setupViewPager(ViewPager viewPager, ArrayList<SampleModel> knownSamples, ArrayList<SampleModel> unKnownSamples, ArrayList<SampleModel> qcSamples) {
+        ViewPagerAdapter adapter = new ViewPagerAdapter(getSupportFragmentManager());
+
+        Bundle redExtras = new Bundle();
+        Bundle greenExtras = new Bundle();
+        Bundle blueExtras = new Bundle();
+
+        redExtras.putParcelableArrayList(KNOWN_SAMPLES_KEY, knownSamples);
+        greenExtras.putParcelableArrayList(KNOWN_SAMPLES_KEY, knownSamples);
+        blueExtras.putParcelableArrayList(KNOWN_SAMPLES_KEY, knownSamples);
+
+        redExtras.putParcelableArrayList(UNKNOWN_SAMPLES_KEY, unKnownSamples);
+        greenExtras.putParcelableArrayList(UNKNOWN_SAMPLES_KEY, unKnownSamples);
+        blueExtras.putParcelableArrayList(UNKNOWN_SAMPLES_KEY, unKnownSamples);
+
+        redExtras.putParcelableArrayList(QC_SAMPLES_KEY, qcSamples);
+        greenExtras.putParcelableArrayList(QC_SAMPLES_KEY, qcSamples);
+        blueExtras.putParcelableArrayList(QC_SAMPLES_KEY, qcSamples);
+
+        redExtras.putInt(CHANNEL_KEY, 0);
+        greenExtras.putInt(CHANNEL_KEY, 1);
+        blueExtras.putInt(CHANNEL_KEY, 2);
+
+        ChannelFragment redResults = new ChannelFragment();
+        ChannelFragment greenResults = new ChannelFragment();
+        ChannelFragment blueResults = new ChannelFragment();
+
+        redResults.setArguments(redExtras);
+        greenResults.setArguments(greenExtras);
+        blueResults.setArguments(blueExtras);
+
+        adapter.addFragment(redResults, "Red");
+        adapter.addFragment(greenResults, "Green");
+        adapter.addFragment(blueResults, "Blue");
+
+        viewPager.setAdapter(adapter);
+    }
+
+    class ViewPagerAdapter extends FragmentPagerAdapter {
+        private final List<Fragment> mFragmentList = new ArrayList<>();
+        private final List<String> mFragmentTitleList = new ArrayList<>();
+
+        public ViewPagerAdapter(FragmentManager manager) {
+            super(manager);
         }
-        return layout;
 
-    }
-
-    private ScatterDataSet generateQCScatterData(ArrayList<SampleModel> dataPoints) {
-        return generateCalculatedData(dataPoints, "Quality Control", 0xff00a000);
-    }
-
-    private ScatterDataSet generateKnownScatterData(ArrayList<SampleModel> dataPoints) {
-        ArrayList<Entry> entries = new ArrayList<Entry>();
-        for (int i = 0; i < dataPoints.size(); i++) {
-            SampleModel sampleModel = dataPoints.get(i);
-            entries.add(new Entry((float) sampleModel.getConcentration(), 255f - (float) sampleModel.getIntensity()));
+        @Override
+        public Fragment getItem(int position) {
+            return mFragmentList.get(position);
         }
-        ScatterDataSet set = new ScatterDataSet(entries, "Known");
-        set.setColor(Color.GRAY);
-        set.setScatterShape(ScatterChart.ScatterShape.CIRCLE);
-        set.setScatterShapeSize(7.5f);
-        set.setDrawValues(false);
-        set.setValueTextSize(10f);
-        return set;
-    }
 
-    private ScatterDataSet generateUnKnownScatterData(ArrayList<SampleModel> dataPoints) {
-        return generateCalculatedData(dataPoints, "Unknown", Color.BLUE);
-    }
-
-    private ScatterDataSet generateCalculatedData(ArrayList<SampleModel> dataPoints, String label, int color) {
-        ArrayList<Entry> entries = new ArrayList<Entry>();
-        for (int i = 0; i < dataPoints.size(); i++) {
-            SampleModel sampleModel = dataPoints.get(i);
-            double intensity = sampleModel.getIntensity();
-            double concentration = mSlope * intensity + mIntercept;
-            entries.add(new Entry((float) concentration, 255f - (float) intensity));
+        @Override
+        public int getCount() {
+            return mFragmentList.size();
         }
-        ScatterDataSet set = new ScatterDataSet(entries, label);
-        set.setColor(color);
-        set.setScatterShape(ScatterChart.ScatterShape.CIRCLE);
-        set.setScatterShapeSize(7.5f);
-        set.setDrawValues(false);
-        set.setValueTextSize(10f);
-        return set;
-    }
 
-    private LineData generateStandardCurveData() {
-        ArrayList<Entry> entries = new ArrayList<Entry>();
-        int k = 0;
-        for (int i = 0; i <= 1000; i += 5) {
-            entries.add(new Entry(i, (float) mStandardCurve.eval(i)));
+        public void addFragment(Fragment fragment, String title) {
+            mFragmentList.add(fragment);
+            mFragmentTitleList.add(title);
         }
-        LineDataSet set1 = new LineDataSet(entries, "Standard Curve");
-        set1.setAxisDependency(YAxis.AxisDependency.LEFT);
-        set1.setColor(Color.RED);
-        set1.setDrawCircleHole(false);
-        set1.setLineWidth(2f);
-        set1.setFillAlpha(65);
-        set1.setFillColor(Color.RED);
-        set1.setHighLightColor(Color.rgb(244, 117, 117));
-        set1.setDrawCircles(false);
-        LineData data = new LineData();
-        data.addDataSet(set1);
-        data.setDrawValues(false);
-        return data;
+
+        @Override
+        public CharSequence getPageTitle(int position) {
+            return mFragmentTitleList.get(position);
+        }
     }
 }

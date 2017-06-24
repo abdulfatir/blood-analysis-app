@@ -26,12 +26,21 @@ public class ImageUtils {
      * @return the bitmap
      */
     public static Bitmap lessResolution(String filePath, int widthNeeded) {
-        Bitmap orig = rotateBitmap(BitmapFactory.decodeFile(filePath), getOrientation(filePath));
-        final int height = orig.getHeight();
-        final int width = orig.getWidth();
-        double aspectRatio = ((double) width) / height;
-        int reqHeight = (int) (widthNeeded / aspectRatio);
-        Bitmap scaled = Bitmap.createScaledBitmap(orig, widthNeeded, reqHeight, true);
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(filePath, opts);
+        int imageWidth = opts.outWidth;
+        int imageHeight = opts.outHeight;
+
+        double aspectRatio = ((double) imageWidth) / imageHeight;
+        int heightNeeded = (int) (widthNeeded / aspectRatio);
+
+        opts.inSampleSize = calculateInSampleSize(opts, widthNeeded, heightNeeded);
+        opts.inJustDecodeBounds = false;
+
+        Bitmap orig = rotateBitmap(BitmapFactory.decodeFile(filePath, opts), getOrientation(filePath));
+
+        Bitmap scaled = Bitmap.createScaledBitmap(orig, widthNeeded, heightNeeded, true);
         if (!scaled.equals(orig)) {
             orig.recycle();
             orig = null;
@@ -110,6 +119,29 @@ public class ImageUtils {
         int orient = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION,
                 ExifInterface.ORIENTATION_UNDEFINED);
         return orient;
+    }
+
+    public static int calculateInSampleSize(
+            BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        // Raw height and width of image
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+
+            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+            // height and width larger than the requested height and width.
+            while ((halfHeight / inSampleSize) >= reqHeight
+                    && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+
+        return inSampleSize;
     }
 
 }

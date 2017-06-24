@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context="com.abdulfatir.concanalyzer.ResultActivity">
+                xmlns:tools="http://schemas.android.com/tools"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                xmlns:app="http://schemas.android.com/apk/res-auto"
+                tools:context="com.abdulfatir.concanalyzer.ResultActivity">
 
     <android.support.v7.widget.Toolbar xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -16,33 +17,21 @@
         app:contentInsetEnd="0dp"
         app:contentInsetStart="0dp" />
 
-    <ScrollView
+    <android.support.design.widget.TabLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/tabLayout"
+        app:tabTextColor="#fff"
+        app:tabSelectedTextColor="#fff"
+        app:tabIndicatorColor="#fff"
+        app:tabMode="fixed"/>
+
+    <android.support.v4.view.ViewPager
+        android:layout_below="@+id/tabLayout"
+        android:layout_marginTop="10dp"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scrollbars="none"
-        android:overScrollMode="never">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:id="@+id/content"
-            android:scrollbars="none"
-            android:orientation="vertical">
-
-            <com.github.mikephil.charting.charts.CombinedChart
-                android:layout_width="match_parent"
-                android:layout_height="400dp"
-                android:id="@+id/graph" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:text="Equation"
-                android:textAppearance="?android:textAppearanceLarge"
-                android:textStyle="bold"
-                android:layout_gravity="center_horizontal"
-                android:id="@+id/equation" />
-        </LinearLayout>
-    </ScrollView>
+        android:overScrollMode="never"
+        android:id="@+id/viewPager"/>
 
 </RelativeLayout>

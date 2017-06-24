@@ -22,7 +22,9 @@ public class SampleModel implements Parcelable {
             return new SampleModel[i];
         }
     };
-    private double mIntensity;
+    private double mRedIntensity;
+    private double mGreenIntensity;
+    private double mBlueIntensity;
     private double mConcentration;
     private DataPointType mDataPointType;
     private boolean mUpdated;
@@ -31,13 +33,17 @@ public class SampleModel implements Parcelable {
      * Instantiates a new Sample model.
      */
     public SampleModel() {
-        this.mIntensity = 0;
+        this.mRedIntensity = 0;
+        this.mGreenIntensity = 0;
+        this.mBlueIntensity = 0;
         this.mConcentration = 0;
         this.mDataPointType = DataPointType.NONE;
         this.mUpdated = false;
     }
     private SampleModel(Parcel in) {
-        this.mIntensity = in.readDouble();
+        this.mRedIntensity = in.readDouble();
+        this.mGreenIntensity = in.readDouble();
+        this.mBlueIntensity = in.readDouble();
         this.mConcentration = in.readDouble();
         this.mDataPointType = DataPointType.values()[in.readInt()];
         this.mUpdated = in.readByte() != 0;
@@ -46,10 +52,14 @@ public class SampleModel implements Parcelable {
     /**
      * Instantiates a new Sample model.
      *
-     * @param mIntensity the intensity value
+     * @param mRedIntensity the red intensity value
+     * @param mGreenIntensity the green intensity value
+     * @param mBlueIntensity the blue intensity value
      */
-    public SampleModel(double mIntensity) {
-        this.mIntensity = mIntensity;
+    public SampleModel(double mRedIntensity, double mGreenIntensity, double mBlueIntensity) {
+        this.mRedIntensity = mRedIntensity;
+        this.mGreenIntensity = mGreenIntensity;
+        this.mBlueIntensity = mBlueIntensity;
         this.mConcentration = 0;
         this.mDataPointType = DataPointType.NONE;
         this.mUpdated = false;
@@ -62,7 +72,9 @@ public class SampleModel implements Parcelable {
 
     @Override
     public void writeToParcel(Parcel parcel, int i) {
-        parcel.writeDouble(mIntensity);
+        parcel.writeDouble(mRedIntensity);
+        parcel.writeDouble(mGreenIntensity);
+        parcel.writeDouble(mBlueIntensity);
         parcel.writeDouble(mConcentration);
         parcel.writeInt(mDataPointType.ordinal());
         parcel.writeByte((byte) (mUpdated ? 1 : 0));
@@ -127,22 +139,13 @@ public class SampleModel implements Parcelable {
      *
      * @return the intensity
      */
-    public double getIntensity() {
-        return mIntensity;
-    }
-
-    /**
-     * Sets intensity.
-     *
-     * @param intensity the intensity
-     */
-    public void setIntensity(double intensity) {
-        this.mIntensity = intensity;
+    public double[] getIntensities() {
+        return new double[]{mRedIntensity, mGreenIntensity, mBlueIntensity};
     }
 
     @Override
     public String toString() {
-        return "{Intensity:" + this.mIntensity
+        return "{Intensity:" + this.mGreenIntensity
                 + ", Concentration:" + this.mConcentration
                 + ", Updated:" + this.mUpdated
                 + "}";

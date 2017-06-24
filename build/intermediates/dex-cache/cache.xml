@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items version="2" >
+
+    <item
+        jar="/Users/abdulfatir/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-math3/3.6/825c90790e83af784be1de0a3f3a9f066cf884b9/commons-math3-3.6.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="825c90790e83af784be1de0a3f3a9f066cf884b9">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/commons-math3-3.6_8afa69f3ee12b189e2aa3ce4bd5fd09242fbd1a5.jar" />
+    </item>
+    <item
+        jar="/Users/abdulfatir/Library/Android/sdk/extras/android/m2repository/com/android/support/support-annotations/24.1.0/support-annotations-24.1.0.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="8a23146e1a8c7cb4758e3d3f62449213f1e51f67">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/support-annotations-24.1.0_4f718aaeada9b9b0217eeaa23725aa0d04577be1.jar" />
+    </item>
+    <item
+        jar="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/exploded-aar/com.android.support/animated-vector-drawable/24.1.0/jars/classes.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="8c854b30eca6c442fe842e66cd3b58c5dd08996f">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/com.android.support-animated-vector-drawable-24.1.0_385cc3be616d40485af66c78d8cba5548e2061bd.jar" />
+    </item>
+    <item
+        jar="/Users/abdulfatir/.gradle/caches/modules-2/files-2.1/com.github.PhilJay/MPAndroidChart/v3.0.0-beta1/54d65d51b5ebec588a19b2384efb6395b5bf5b18/MPAndroidChart-v3.0.0-beta1.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="54d65d51b5ebec588a19b2384efb6395b5bf5b18">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/MPAndroidChart-v3.0.0-beta1_aff15317f7377fe6d74994f59779c918c9ca8118.jar" />
+    </item>
+    <item
+        jar="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/exploded-aar/com.android.support/appcompat-v7/24.1.0/jars/classes.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="9340c4f95a4e3916c9ad70296e24576743743712">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/com.android.support-appcompat-v7-24.1.0_3daaf77c634db03750d34cb8007493659851e162.jar" />
+    </item>
+    <item
+        jar="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/exploded-aar/com.android.support/support-vector-drawable/24.1.0/jars/classes.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="ba8e8860f7e033c3a503b682337a4bafdf56e6ee">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/com.android.support-support-vector-drawable-24.1.0_1a66827cb648382b74d66c002a0b4556b08cfe89.jar" />
+    </item>
+    <item
+        jar="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/exploded-aar/blood-analysis-app/openCVLibrary310/unspecified/jars/classes.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="a5c0fd8201189f51a416879d1ee56d0d48ffc3f7">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/blood-analysis-app-openCVLibrary310-unspecified_540137d14251b130bf479d5deb2987643be7f7fa.jar" />
+    </item>
+    <item
+        jar="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/exploded-aar/com.android.support/support-v4/24.1.0/jars/classes.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="e096a5d8343cc9c5a9f6eded36bd0f4c82f8c83e">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/com.android.support-support-v4-24.1.0_61dc8c630dd53c490295584768979e83822b8963.jar" />
+    </item>
+    <item
+        jar="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/exploded-aar/com.android.support/support-v4/24.1.0/jars/libs/internal_impl-24.1.0.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="8c7087216946c546f85a1242a2794c0f271e092c">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/internal_impl-24.1.0_e1174b08f78ece93236fd64b4ad6fba488835cf5.jar" />
+    </item>
+    <item
+        jar="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/exploded-aar/com.android.support/design/24.1.0/jars/classes.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="8620c018c108eed501bbdb85324b79136373ea44">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/com.android.support-design-24.1.0_f951b88e60fb2415267fa23dc35a5ae2dddeac9e.jar" />
+    </item>
+    <item
+        jar="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/exploded-aar/com.android.support/recyclerview-v7/24.1.0/jars/classes.jar"
+        jumboMode="false"
+        revision="24.0.0"
+        sha1="4157816e81f0820983957687e9a6f4c1cea0f1e5">
+        <dex dex="/Users/abdulfatir/Documents/blood-analysis-app/app/build/intermediates/pre-dexed/debug/com.android.support-recyclerview-v7-24.1.0_a0f66630922fd397253269c954c98d8e4ce9d75f.jar" />
+    </item>
+
+</items>
